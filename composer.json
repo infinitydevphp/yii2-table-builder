@@ -1,0 +1,24 @@
+{
+  "name": "infinitydevphp/yii2-table-builder",
+  "description": "Yii2 table builder",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "homepage": "https://github.com/infinitydevphp/yii2-table-builder",
+  "authors": [
+    {
+      "name": "InfinityDevPhp",
+      "email": "infinitydevphp@gmail.com"
+    }
+  ],
+  "require" : {
+    "php": ">=5.5.0",
+    "yiisoft/yii2": ">=2.0.6"
+  },
+  "require-dev": {
+  },
+  "autoload": {
+    "psr-4": {
+      "infinitydevphp\\tableBuilder\\": "src/"
+    }
+  }
+}

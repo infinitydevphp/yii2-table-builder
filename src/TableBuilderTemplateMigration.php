@@ -41,6 +41,18 @@ class TableBuilderTemplateMigration extends TableBuilder
         $this->migrationTemplate = __DIR__ . '/MigrationTemplate.php';
     }
 
+    protected function getDefaultValue($val) {
+        if (is_bool($val)) {
+            return $val ? 1 : 0;
+        }
+
+        if (is_numeric($val)) {
+            return $val;
+        }
+
+        return '"' . str_replace('"', "'", $val) . '"';
+    }
+
     /**
      * @inheritdoc
      */
@@ -105,7 +117,7 @@ class TableBuilderTemplateMigration extends TableBuilder
         }
 
         if (isset($config['default']) && !empty($config['default'])) {
-            $row .= "->defaultValue({$config['default']})";
+            $row .= "->defaultValue(\"" . $this->getDefaultValue($config['default']) . "\")";
         }
 
         if (isset($config['is_not_null']) && $config['is_not_null']) {
@@ -113,7 +125,7 @@ class TableBuilderTemplateMigration extends TableBuilder
         }
 
         if (isset($config['comment']) && $config['comment']) {
-            $row .= "->comment({$config['comment']})";
+            $row .= "->comment(\"" . str_replace('"', "'", $config['comment']) . '")';
         }
 
         if (isset($config['related_table']) && $config['related_table'] && isset($config['related_field']) && $config['related_field']) {

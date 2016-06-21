@@ -36,8 +36,8 @@ class TableBuilderTemplateMigration extends TableBuilder
     public $prefix = 'create_table_';
     public $migrationTemplate = '';
 
-    public function init() {
-        $this->migrationName= $this->getMigrationName($this->migrationName);
+    public function afterInit() {
+        $this->migrationName = $this->getMigrationName($this->migrationName);
         $this->migrationTemplate = __DIR__ . '/MigrationTemplate.php';
     }
 
@@ -63,14 +63,26 @@ class TableBuilderTemplateMigration extends TableBuilder
         $precision = isset($config['precision']) && $config['length'] ? $config['precision'] : null;
         $scale = isset($config['scale']) && $config['length'] ? $config['scale'] : null;
 
-        switch (isset($config['type']) && $config['type']) {
+        if (!(isset($config['type']) && $config['type']))
+            throw new \ErrorException("Type field is undefined");
+
+        switch ($config['type']) {
             case Schema::TYPE_BIGINT:
                 $row .= "\$this->bigInteger({$length})";
                 break;
-            case Schema::TYPE_PK || Schema::TYPE_UPK:
+            case Schema::TYPE_INTEGER:
+                $row = "\$this->integer({$length})";
+                break;
+            case Schema::TYPE_PK:
                 $row = "\$this->primaryKey({$length})";
                 break;
-            case Schema::TYPE_BIGPK || Schema::TYPE_UBIGPK:
+            case Schema::TYPE_UPK:
+                $row = "\$this->primaryKey({$length})";
+                break;
+            case Schema::TYPE_BIGPK:
+                $row = "\$this->bigPrimaryKey({$length})";
+                break;
+            case Schema::TYPE_UBIGPK:
                 $row = "\$this->bigPrimaryKey({$length})";
                 break;
             case Schema::TYPE_BINARY:
@@ -109,6 +121,9 @@ class TableBuilderTemplateMigration extends TableBuilder
             case Schema::TYPE_TIMESTAMP:
                 $row = "\$this->timestamp({$precision})";
                 break;
+            default:
+                $row = "\$this->string({$length})";
+                break;
         }
 
         if ((isset($config['type']) && ($config['type'] == Schema::TYPE_UPK || $config['type'] == Schema::TYPE_UBIGPK)) ||
@@ -117,7 +132,7 @@ class TableBuilderTemplateMigration extends TableBuilder
         }
 
         if (isset($config['default']) && !empty($config['default'])) {
-            $row .= "->defaultValue(\"" . $this->getDefaultValue($config['default']) . "\")";
+            $row .= "->defaultValue(" . $this->getDefaultValue($config['default']) . ")";
         }
 
         if (isset($config['is_not_null']) && $config['is_not_null']) {
@@ -131,10 +146,10 @@ class TableBuilderTemplateMigration extends TableBuilder
         if (isset($config['related_table']) && $config['related_table'] && isset($config['related_field']) && $config['related_field']) {
             $this->relations[] = [
                 'fk_name' => isset($config['fk_name']) && $config['fk_name'] ? $config['fk_name'] :
-                    $this->getNameForeignKey($this->tableName, $config['related_table'], $config['name'], $config['related_field']),
-                'table_name' => $this->tableName,
+                    $this->getNameForeignKey($this->tableNameRaw, $config['related_table'], $config['name'], $config['related_field'], 255),
+                'table_name' => $this->addTablePrefix($this->tableNameRaw),
                 'field' => $config['name'],
-                'related_table' => $config['related_table'],
+                'related_table' => $this->addTablePrefix($config['related_table']),
                 'related_field' => $config['related_field']
             ];
         }
@@ -148,10 +163,11 @@ class TableBuilderTemplateMigration extends TableBuilder
     public function runRelations() {
         $view = new View();
         return $view->renderFile($this->migrationTemplate, [
-            'tablename' => $this->tableName,
+            'tablename' => $this->addTablePrefix($this->tableName),
             'fields' => $this->columns,
             'classname' => $this->getMigrationName($this->prefix . $this->tableName),
-            'foreignKey' => $this->relations
+            'foreignKey' => $this->relations,
+            'db' => $this->db
         ]);
     }
 
@@ -198,7 +214,7 @@ class TableBuilderTemplateMigration extends TableBuilder
      * @return mixed|string
      */
     protected function getMigrationName($name = '') {
-        $name = $name ? : $this->prefix . $this->tableName;
+        $name = $name ? : $this->prefix . $this->tableNameRaw;
         Yii::$app->session->set($this->tableName, '');
         $this->migrationName= $this->migrationName ? : 'm' . gmdate('ymd_His') . '_' . $name;
 

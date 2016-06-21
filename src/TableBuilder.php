@@ -7,6 +7,7 @@ use yii\base\Exception;
 use yii\base\Object;
 use yii\db\ColumnSchemaBuilder;
 use yii\db\Connection;
+use yii\db\IntegrityException;
 use yii\db\Migration;
 use yii\db\Schema;
 use Yii;
@@ -33,23 +34,15 @@ class TableBuilder extends Object
     /** @var array|null Relation generate */
     protected $relations = [];
     /**
-     * @var Connection|array|string the DB connection object or the application component ID of the DB connection
-     * that this migration should work with. Starting from version 2.0.2, this can also be a configuration array
-     * for creating the object.
-     *
-     * Note that when a Migration object is created by the `migrate` command, this property will be overwritten
-     * by the command. If you do not want to use the DB connection provided by the command, you may override
-     * the [[init()]] method like the following:
-     *
-     * ```php
-     * public function init()
-     * {
-     *     $this->db = 'db2';
-     *     parent::init();
-     * }
-     * ```
+     * @var string the DB connection components name
      */
     public $db = 'db';
+    /** @var Connection */
+    protected $_connection = null;
+    public $dropOriginTable = false;
+    public $tableNameRaw;
+    public $hideMigrationOutput = true;
+    public $useTablePrefix = false;
 
     /**
      * @inheritdoc
@@ -59,18 +52,31 @@ class TableBuilder extends Object
         $this->migrationClass = new Migration([
             'db' => $this->db
         ]);
+
+        $this->_connection = Yii::$app->{$this->db};
+    }
+
+    public function afterInit()
+    {
     }
 
     public function __construct($config)
     {
         parent::__construct($config);
+        $this->tableNameRaw = Yii::$app->db->schema->getRawTableName($this->tableName);
+
+        if (!$this->tableName) {
+            throw new ErrorException("Table name not defined");
+        }
+        $this->afterInit();
         $this->generateFields();
     }
 
-    protected function generateFields() {
+    protected function generateFields()
+    {
         if (!is_array($this->fields) || !count($this->fields)) {
             $this->fields = [];
-            $fieldsSchema = Yii::$app->db->schema->getTableSchema($this->tableName);
+            $fieldsSchema = $this->_connection->schema->getTableSchema($this->tableNameRaw);
             if ($fieldsSchema->columns) {
                 foreach ($fieldsSchema->columns as $_next) {
                     $this->fields[$_next->name] = [
@@ -86,10 +92,9 @@ class TableBuilder extends Object
                 }
                 if (is_array($fieldsSchema->foreignKeys)) {
                     foreach ($fieldsSchema->foreignKeys as $foreignKey) {
-                        var_dump($foreignKey);
                         $relation = [
                             'related_table' => $foreignKey[0],
-                            'table_name' => $this->tableName
+                            'table_name' => $this->tableNameRaw
                         ];
                         foreach ($foreignKey as $_key => $_next) {
                             if (!is_numeric($_key)) {
@@ -117,14 +122,30 @@ class TableBuilder extends Object
         $precision = isset($config['precision']) && $config['length'] ? $config['precision'] : null;
         $scale = isset($config['scale']) && $config['length'] ? $config['scale'] : null;
 
-        switch (isset($config['type']) && $config['type']) {
-            case Schema::TYPE_BIGINT:
-                $row = $this->migrationClass->bigInteger($length);
-                break;
+        $this->migrationClass = new Migration([
+            'db' => $this->db
+        ]);
+
+        if (!(isset($config['type']) && $config['type']))
+            throw new \ErrorException("Type field is undefined");
+
+        switch ($config['type']) {
             case Schema::TYPE_PK:
                 $row = $this->migrationClass->primaryKey($length);
                 break;
+            case Schema::TYPE_UPK:
+                $row = $this->migrationClass->primaryKey($length);
+                break;
+            case Schema::TYPE_INTEGER:
+                $row = $this->migrationClass->integer($length);
+                break;
+            case Schema::TYPE_BIGINT:
+                $row = $this->migrationClass->bigInteger($length);
+                break;
             case Schema::TYPE_BIGPK:
+                $row = $this->migrationClass->bigPrimaryKey($length);
+                break;
+            case Schema::TYPE_UBIGPK:
                 $row = $this->migrationClass->bigPrimaryKey($length);
                 break;
             case Schema::TYPE_BINARY:
@@ -163,6 +184,9 @@ class TableBuilder extends Object
             case Schema::TYPE_TIMESTAMP:
                 $row = $this->migrationClass->timestamp($precision);
                 break;
+            default:
+                $row = $this->migrationClass->string($length);
+                break;
         }
 
         if ((isset($config['type']) && ($config['type'] == Schema::TYPE_UPK || $config['type'] == Schema::TYPE_UBIGPK)) ||
@@ -183,12 +207,16 @@ class TableBuilder extends Object
             $row = $row->comment($config['comment']);
         }
 
-        if (isset($config['related_table']) && $config['related_table'] && isset($config['related_field']) && $config['related_field']) {
+        $config['related_table'] = isset($config['related_table']) ? trim($config['related_table']) : null;
+        $config['related_field'] = isset($config['related_field']) ? trim($config['related_field']) : null;
+
+        if ($config['related_table'] && $config['related_field']) {
             $this->relations[] = [
-                'fk_name' => isset($config['fk_name']) && $config['fk_name'] ? $config['fk_name'] : '',
-                'table_name' => $this->tableName,
+                'fk_name' => isset($config['fk_name']) && $config['fk_name'] ? $config['fk_name'] :
+                    self::getNameForeignKey($this->tableNameRaw, $config['related_table'], $config['name'], $config['related_field'], 255),
+                'table_name' => $this->addTablePrefix($this->tableNameRaw),
                 'field' => $config['name'],
-                'related_table' => $config['related_table'],
+                'related_table' => $this->addTablePrefix($config['related_table']),
                 'related_field' => $config['related_field']
             ];
         }
@@ -212,9 +240,9 @@ class TableBuilder extends Object
      * @param int $countSymb Count symbol substring from begin
      * @return string
      */
-    protected static function prepStr($str, $countSymb = 10)
+    protected static function prepStr($str, $countSymb = 255)
     {
-        $str = str_replace(['-', '_'], ['', ''], $str);
+        //$str = str_replace(['-', '_'], ['', ''], $str);
         $len = strlen($str);
         $len = $len > $countSymb ? $countSymb : $len;
         return substr($str, 0, $len);
@@ -228,9 +256,10 @@ class TableBuilder extends Object
      * @param string $fieldNameRelated related field name
      * @return string
      */
-    public static function getNameForeignKey($tableName, $tableNameRelated, $fieldName, $fieldNameRelated)
+    public static function getNameForeignKey($tableName, $tableNameRelated, $fieldName, $fieldNameRelated, $wordWrap = false)
     {
-        return 'fk_' . self::prepStr($tableName) . '_' . self::prepStr($fieldName) . '_' . self::prepStr($tableNameRelated) . '_' . self::prepStr($fieldNameRelated);
+        return is_bool($wordWrap) ? 'fk_' . self::prepStr($tableName) . '_' . self::prepStr($fieldName) . '_' . self::prepStr($tableNameRelated) . '_' . self::prepStr($fieldNameRelated)
+            : self::prepStr('fk_' . $tableName . '_' . $fieldName . '_' . $tableNameRelated . '_' . $fieldNameRelated, $wordWrap);
     }
 
     /**
@@ -241,13 +270,85 @@ class TableBuilder extends Object
     {
         $result = true;
         foreach ($this->relations as $_nextRelation) {
-            $keyName = isset($_nextRelation['fk_name']) ?
-                $_nextRelation['fk_name'] :
-                self::getNameForeignKey($_nextRelation['table_name'], $_nextRelation['related_table'], $_nextRelation['field'], $_nextRelation['related_field']);
-            $result=  $this->migrationClass->addForeignKey($keyName, $_nextRelation[0], $_nextRelation[2], $_nextRelation[1], $_nextRelation[3], 'RESTRICT', 'CASCADE') && $result;
+            try {
+                if ($this->hideMigrationOutput) {
+                    ob_start();
+                }
+                $result = $this->migrationClass->addForeignKey($_nextRelation['fk_name'],
+                        $_nextRelation['table_name'],
+                        $_nextRelation['field'],
+                        $_nextRelation['related_table'],
+                        $_nextRelation['related_field'], 'RESTRICT', 'CASCADE') && $result;
+
+                if ($this->hideMigrationOutput) {
+                    ob_clean();
+                    ob_flush();
+                    ob_end_flush();
+                    ob_end_clean();
+                }
+            } catch (\yii\db\Exception $expt) {
+            }
         }
 
         return $result;
+    }
+
+    public function dropTable()
+    {
+        if ($this->dropOriginTable) {
+            if (in_array($this->tableNameRaw, $this->_connection->schema->tableNames)) {
+                $schema = $this->_connection->schema->getTableSchema($this->tableNameRaw);
+                if ($schema) {
+                    $keys = $schema->foreignKeys;
+                    if (is_array($keys)) {
+                        foreach ($keys as $name => $_next) {
+
+                            $t = [];
+                            foreach ($_next as $k => $v) {
+                                if (!$k) {
+                                    $t['related_table'] = $v;
+                                } else {
+                                    $t['related_field'] = $v;
+                                    $t['field'] = $k;
+                                }
+                            }
+
+                            try {
+                                $keyName = $this->getNameForeignKey($this->tableNameRaw, $t['related_table'], $_next[$t['field']], $t['related_field'], 255);
+                                if ($this->hideMigrationOutput) {
+                                    ob_start();
+                                }
+                                $this->migrationClass->dropForeignKey($keyName, $this->tableNameRaw);
+                                if ($this->hideMigrationOutput) {
+                                    ob_clean();
+                                    ob_flush();
+                                    ob_end_flush();
+                                    ob_end_clean();
+                                }
+                            } catch (\yii\db\Exception $exp) {
+                            }
+                        }
+                    }
+                    if ($this->hideMigrationOutput) {
+                        ob_start();
+                    }
+                    try {
+                        $this->migrationClass->dropTable($this->tableNameRaw);
+                    } catch (\yii\db\Exception $exp) {
+
+                    } catch (IntegrityException $exp) {
+
+                    }
+
+                    if ($this->hideMigrationOutput) {
+                        ob_clean();
+                        ob_flush();
+                        ob_end_flush();
+                        ob_end_clean();
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -255,7 +356,31 @@ class TableBuilder extends Object
      */
     public function runCreateTable()
     {
-        $this->migrationClass->createTable($this->tableName, $this->columns);
+        $this->dropTable();
+        if ($this->hideMigrationOutput) {
+            ob_start();
+        }
+        /** @var Connection $_conn */
+        $_conn = Yii::$app->{$this->db};
+        if (!$_conn->schema->getTableSchema($this->tableName)) {
+            $this->migrationClass->createTable($this->tableNameRaw, $this->columns);
+        }
+        if ($this->hideMigrationOutput) {
+            ob_clean();
+            ob_flush();
+            ob_end_flush();
+            ob_end_clean();
+        }
+    }
+
+    protected function addTablePrefix($tableName) {
+        if (!$this->useTablePrefix) {
+            $tableName = str_replace(['{{%', '}}'], '', $tableName);
+
+            return $tableName;
+        }
+
+        return substr_count($tableName, '{{%') ? $tableName : "{{%$tableName}}";
     }
 
     public function runQuery($build = true)

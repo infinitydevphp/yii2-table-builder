@@ -1,3 +1,4 @@
+/*.sh
 .idea/
 *.iml
 *.iws
@@ -12,3 +13,4 @@ fabric.properties
 /composer.lock
 vendor/
 /basic/
+*.sh

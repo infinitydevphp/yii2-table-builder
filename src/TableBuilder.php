@@ -43,6 +43,7 @@ class TableBuilder extends Object
     public $tableNameRaw;
     public $hideMigrationOutput = true;
     public $useTablePrefix = false;
+    public $primaryKeys = [];
 
     /**
      * @inheritdoc
@@ -207,6 +208,10 @@ class TableBuilder extends Object
             $row = $row->comment($config['comment']);
         }
 
+        if (isset($config['isCompositeKey']) && $config['isCompositeKey']) {
+            $this->primaryKeys[] = $config['name'];
+        }
+
         $config['related_table'] = isset($config['related_table']) ? trim($config['related_table']) : null;
         $config['related_field'] = isset($config['related_field']) ? trim($config['related_field']) : null;
 
@@ -283,8 +288,6 @@ class TableBuilder extends Object
                 if ($this->hideMigrationOutput) {
                     ob_clean();
                     ob_flush();
-                    ob_end_flush();
-                    ob_end_clean();
                 }
             } catch (\yii\db\Exception $expt) {
             }
@@ -322,8 +325,6 @@ class TableBuilder extends Object
                                 if ($this->hideMigrationOutput) {
                                     ob_clean();
                                     ob_flush();
-                                    ob_end_flush();
-                                    ob_end_clean();
                                 }
                             } catch (\yii\db\Exception $exp) {
                             }
@@ -343,8 +344,6 @@ class TableBuilder extends Object
                     if ($this->hideMigrationOutput) {
                         ob_clean();
                         ob_flush();
-                        ob_end_flush();
-                        ob_end_clean();
                     }
                 }
             }
@@ -364,12 +363,14 @@ class TableBuilder extends Object
         $_conn = Yii::$app->{$this->db};
         if (!$_conn->schema->getTableSchema($this->tableName)) {
             $this->migrationClass->createTable($this->tableNameRaw, $this->columns);
+
+            if (is_array($this->primaryKeys) && sizeof($this->primaryKeys)) {
+                $this->migrationClass->addPrimaryKey("{$this->tableNameRaw}_pk", $this->tableNameRaw, $this->primaryKeys);
+            }
         }
         if ($this->hideMigrationOutput) {
             ob_clean();
             ob_flush();
-            ob_end_flush();
-            ob_end_clean();
         }
     }
 
@@ -383,11 +384,23 @@ class TableBuilder extends Object
         return substr_count($tableName, '{{%') ? $tableName : "{{%$tableName}}";
     }
 
+    protected function generatePrimaryKey() {
+        if (is_array($this->primaryKeys) && !count($this->primaryKeys)) {
+            $db = $this->db;
+            /** @var Connection $db */
+            $db = Yii::$app->{$db};
+            if ($tableSchema = $db->getTableSchema($this->tableNameRaw)) {
+                $this->primaryKeys = $tableSchema->primaryKey;
+            }
+        }
+    }
+
     public function runQuery($build = true)
     {
         if ($build)
             $this->buildQuery();
 
+        $this->generatePrimaryKey();
         $this->runCreateTable();
         return $this->runRelations();
     }

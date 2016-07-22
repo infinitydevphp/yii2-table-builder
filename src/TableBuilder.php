@@ -283,8 +283,6 @@ class TableBuilder extends Object
                 if ($this->hideMigrationOutput) {
                     ob_clean();
                     ob_flush();
-                    ob_end_flush();
-                    ob_end_clean();
                 }
             } catch (\yii\db\Exception $expt) {
             }
@@ -322,8 +320,6 @@ class TableBuilder extends Object
                                 if ($this->hideMigrationOutput) {
                                     ob_clean();
                                     ob_flush();
-                                    ob_end_flush();
-                                    ob_end_clean();
                                 }
                             } catch (\yii\db\Exception $exp) {
                             }
@@ -343,8 +339,6 @@ class TableBuilder extends Object
                     if ($this->hideMigrationOutput) {
                         ob_clean();
                         ob_flush();
-                        ob_end_flush();
-                        ob_end_clean();
                     }
                 }
             }
@@ -368,8 +362,6 @@ class TableBuilder extends Object
         if ($this->hideMigrationOutput) {
             ob_clean();
             ob_flush();
-            ob_end_flush();
-            ob_end_clean();
         }
     }
 

@@ -8,7 +8,6 @@
 
 namespace infinitydevphp\tableBuilder;
 
-
 use yii\base\ErrorException;
 use yii\base\Exception;
 use yii\db\ColumnSchemaBuilder;
@@ -57,7 +56,9 @@ class TableBuilderTemplateMigration extends TableBuilder
      * @inheritdoc
      */
     protected function buildNextField($config) {
+        $pksType = [Schema::TYPE_PK, Schema::TYPE_UPK, Schema::TYPE_BIGPK];
         /** @var ColumnSchemaBuilder $row */
+
         $row = null;
         $length = isset($config['length']) && $config['length'] ? $config['length'] : null;
         $precision = isset($config['precision']) && $config['length'] ? $config['precision'] : null;
@@ -68,21 +69,25 @@ class TableBuilderTemplateMigration extends TableBuilder
 
         switch ($config['type']) {
             case Schema::TYPE_BIGINT:
+                $this->primaryKeys[] = $config['name'];
                 $row .= "\$this->bigInteger({$length})";
                 break;
             case Schema::TYPE_INTEGER:
                 $row = "\$this->integer({$length})";
                 break;
             case Schema::TYPE_PK:
+                $this->primaryKeys[] = $config['name'];
                 $row = "\$this->primaryKey({$length})";
                 break;
             case Schema::TYPE_UPK:
                 $row = "\$this->primaryKey({$length})";
                 break;
             case Schema::TYPE_BIGPK:
+                $this->primaryKeys[] = $config['name'];
                 $row = "\$this->bigPrimaryKey({$length})";
                 break;
             case Schema::TYPE_UBIGPK:
+                $this->primaryKeys[] = $config['name'];
                 $row = "\$this->bigPrimaryKey({$length})";
                 break;
             case Schema::TYPE_BINARY:
@@ -126,6 +131,10 @@ class TableBuilderTemplateMigration extends TableBuilder
                 break;
         }
 
+        if (isset($config['isCompositeKey']) && $config['isCompositeKey']) {
+            $this->primaryKeys[] = $config['name'];
+        }
+
         if ((isset($config['type']) && ($config['type'] == Schema::TYPE_UPK || $config['type'] == Schema::TYPE_UBIGPK)) ||
             (isset($config['unsigned']) && $config['unsigned'])) {
             $row .= "->unsigned()";
@@ -162,12 +171,15 @@ class TableBuilderTemplateMigration extends TableBuilder
      */
     public function runRelations() {
         $view = new View();
+
         return $view->renderFile($this->migrationTemplate, [
-            'tablename' => $this->addTablePrefix($this->tableName),
+            'tableName' => $this->addTablePrefix($this->tableName),
+            'tableNameRaw' => $this->tableNameRaw,
             'fields' => $this->columns,
             'classname' => $this->getMigrationName($this->prefix . $this->tableName),
             'foreignKey' => $this->relations,
-            'db' => $this->db
+            'db' => $this->db,
+            'primaryKeys' => $this->primaryKeys,
         ]);
     }
 

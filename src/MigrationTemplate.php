@@ -11,6 +11,12 @@ if (!function_exists('duplicate')) {
         return false;
     }
 }
+/**
+ * @var string $tableName
+ * @var string $tableNameRaw
+ * @var array $fields
+ * @var array $foreignKey
+ */
 ?>
 <?php echo "<?php" . PHP_EOL; ?>
 use yii\db\Schema;
@@ -26,14 +32,14 @@ class <?php echo $classname; ?> extends Migration
             $tableOptions = 'CHARACTER SET utf8 COLLATE utf8_unicode_ci ENGINE=InnoDB';
         }
 
-        $this->createTable('<?php echo $tablename; ?>', [
+        $this->createTable('<?php echo $tableName; ?>', [
 <?php
 foreach ($fields as $_name => $_nextField) { ?>
             '<?php echo $_name;?>' => <?php echo $_nextField . "," . PHP_EOL; ?>
 <?php }?>
 
         ], $tableOptions);
-
+        $this->addForeignKey('<?= $tableNameRaw ?>_pk', '<?= $tableName?>', ['<?= implode('\', \'', $primaryKeys)?>'])
 <?php
 if (is_array($foreignKey)) {
 foreach ($foreignKey as $_nextKey) {?>
@@ -42,8 +48,8 @@ foreach ($foreignKey as $_nextKey) {?>
                              '<?=$_nextKey['field'];?>',
                              '<?=$_nextKey['related_table'];?>',
                              '<?=$_nextKey['related_field'];?>',
-                             <?= $_nextKey['delete'] ? "'{$_nextKey['delete']}'" : 'null'?>,
-                             <?= $_nextKey['update'] ? "'{$_nextKey['update']}'" : 'null' ?>);
+                             <?= isset($_nextKey['delete']) && $_nextKey['delete'] ? "'{$_nextKey['delete']}'" : 'null'?>,
+                             <?= isset($_nextKey['update']) && $_nextKey['update'] ? "'{$_nextKey['update']}'" : 'null' ?>);
 <?php echo PHP_EOL; ?>
 <?php }}?>
     }
@@ -56,6 +62,6 @@ if (is_array($foreignKey)) {
 foreach ($foreignKey as $index => $_nextKey) { if (!duplicate($_nextKey['fk_name'], $index, $foreignKey)) {?>
         <?php echo "\$this->dropForeignKey('{$_nextKey['fk_name']}', '{$_nextKey['table_name']}');" . PHP_EOL; ?>
 <?php }}}?>
-        $this->dropTable('<?php echo $tablename; ?>');
+        $this->dropTable('<?php echo $tableName; ?>');
     }
 }

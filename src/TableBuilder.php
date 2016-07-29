@@ -132,10 +132,10 @@ class TableBuilder extends Object
 
         switch ($config['type']) {
             case Schema::TYPE_PK:
-                $row = $this->migrationClass->primaryKey($length);
+                $row = $this->migrationClass->integer($length);
                 break;
             case Schema::TYPE_UPK:
-                $row = $this->migrationClass->primaryKey($length);
+                $row = $this->migrationClass->integer($length);
                 break;
             case Schema::TYPE_INTEGER:
                 $row = $this->migrationClass->integer($length);
@@ -144,10 +144,10 @@ class TableBuilder extends Object
                 $row = $this->migrationClass->bigInteger($length);
                 break;
             case Schema::TYPE_BIGPK:
-                $row = $this->migrationClass->bigPrimaryKey($length);
+                $row = $this->migrationClass->bigInteger($length);
                 break;
             case Schema::TYPE_UBIGPK:
-                $row = $this->migrationClass->bigPrimaryKey($length);
+                $row = $this->migrationClass->bigInteger($length);
                 break;
             case Schema::TYPE_BINARY:
                 $row = $this->migrationClass->binary($length);

@@ -365,7 +365,9 @@ class TableBuilder extends Object
             $this->migrationClass->createTable($this->tableNameRaw, $this->columns);
 
             if (is_array($this->primaryKeys) && sizeof($this->primaryKeys)) {
-                $this->migrationClass->addPrimaryKey("{$this->tableNameRaw}_pk", $this->tableNameRaw, $this->primaryKeys);
+                try {
+                    $this->migrationClass->addPrimaryKey("{$this->tableNameRaw}_pk", $this->tableNameRaw, $this->primaryKeys);
+                } catch (\yii\db\Exception $exp) {}
             }
         }
         if ($this->hideMigrationOutput) {

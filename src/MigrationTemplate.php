@@ -40,7 +40,7 @@ foreach ($fields as $_name => $_nextField) { ?>
 <?php }?>
 
         ], $tableOptions);
-        $this->createIndex('<?= $tableNameRaw ?>_pk', '<?= $tableName?>', ['<?= implode('\', \'', $primaryKeys)?>']);
+        $this->addPrimaryKey('<?= $tableNameRaw ?>_pk', '<?= $tableName?>', ['<?= implode('\', \'', $primaryKeys)?>']);
 <?php
 if (is_array($foreignKey)) {
 foreach ($foreignKey as $_nextKey) {?>

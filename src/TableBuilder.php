@@ -69,6 +69,7 @@ class TableBuilder extends Object
         if (!$this->tableName) {
             throw new ErrorException("Table name not defined");
         }
+
         $this->afterInit();
         $this->generateFields();
     }

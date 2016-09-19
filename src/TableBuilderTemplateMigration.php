@@ -12,9 +12,12 @@ use yii\base\ErrorException;
 use yii\base\Exception;
 use yii\db\ColumnSchemaBuilder;
 use yii\db\Connection;
+use yii\db\Expression;
 use yii\db\Migration;
+use yii\db\Query;
 use yii\db\Schema;
 use Yii;
+use yii\helpers\ArrayHelper;
 use yii\web\View;
 
 /**
@@ -166,19 +169,56 @@ class TableBuilderTemplateMigration extends TableBuilder
         return $row;
     }
 
+    protected $allRelations = [];
+
+    protected function findRelationName($tableName, $relationConfig) {
+        if ($this->_connection->driverName === 'mysql') {
+            $foreignKey = new Query();
+
+            if (!isset($this->allRelations[$tableName])) {
+                $this->allRelations[$tableName] = $foreignKey->select([
+                    'i.TABLE_NAME as table_name',
+                    'i.CONSTRAINT_TYPE as constraint_type',
+                    'i.CONSTRAINT_NAME as constraint_name',
+                    'k.REFERENCED_TABLE_NAME as referenced_table_name',
+                    'k.REFERENCED_COLUMN_NAME as referenced_column_name',
+                    'k.COLUMN_NAME as column_name'
+                ])->from('information_schema.TABLE_CONSTRAINTS as i')
+                                        ->innerJoin('information_schema.KEY_COLUMN_USAGE as k', '`i`.`CONSTRAINT_NAME` = `k`.`CONSTRAINT_NAME`')->andWhere([
+                        'i.CONSTRAINT_TYPE' => 'FOREIGN KEY',
+                        'i.TABLE_SCHEMA'    => new Expression('DATABASE()'),
+                        'i.TABLE_NAME'      => $this->_connection->schema->getRawTableName($tableName),
+                    ])->all($this->_connection);
+            }
+
+            foreach ($this->allRelations[$tableName] as $item) {
+                if ($item['referenced_column_name'] == $relationConfig['related_field'] && $item['column_name'] == $relationConfig['field']) {
+                    return $item['constraint_name'];
+                }
+            }
+        }
+
+        return '';
+    }
+
     /**
      * @inheritdoc
      */
     public function runRelations() {
         $view = new View();
 
+        foreach ($this->relations as $index => $relation) {
+            $this->relations[$index]['fk_name'] = isset($relation['fk_name']) ? $relation['fk_name'] : $this->findRelationName($this->tableName, $relation);
+        }
+
         return $view->renderFile($this->migrationTemplate, [
             'tableName' => $this->addTablePrefix($this->tableName),
             'tableNameRaw' => $this->tableNameRaw,
             'fields' => $this->columns,
             'classname' => $this->getMigrationName($this->prefix . $this->tableName),
-            'foreignKey' => $this->relations,
+            'foreignKey' => $this->relations ? : [],
             'db' => $this->db,
+            'fieldNames' => ArrayHelper::map($this->fields, 'name', 'name'),
             'primaryKeys' => $this->primaryKeys,
         ]);
     }
@@ -194,7 +234,7 @@ class TableBuilderTemplateMigration extends TableBuilder
      * @return mixed
      */
     protected function saveTblNameInSession($name) {
-        if ($session = Yii::$app->getComponents('session')) {
+        if ($session = Yii::$app->getComponents()) {
             if (isset($session['session'])) {
                 if ($mName = Yii::$app->session->get($this->tableName)) {
                     return $mName;
@@ -213,7 +253,7 @@ class TableBuilderTemplateMigration extends TableBuilder
      * Reset migration name in session
      */
     public function resetSessionMigrationName() {
-        if ($session = Yii::$app->getComponents('session')) {
+        if ($session = Yii::$app->getComponents()) {
             if (isset($session['session'])) {
                 Yii::$app->session->set($this->tableName, null);
             }
@@ -225,9 +265,13 @@ class TableBuilderTemplateMigration extends TableBuilder
      * @param string $name Migration name
      * @return mixed|string
      */
-    protected function getMigrationName($name = '') {
+    public function getMigrationName($name = '') {
         $name = $name ? : $this->prefix . $this->tableNameRaw;
-        Yii::$app->session->set($this->tableName, '');
+
+        $components = Yii::$app->getComponents();
+        if (isset($components['session'])) {
+            Yii::$app->session->set($this->tableName, '');
+        }
         $this->migrationName= $this->migrationName ? : 'm' . gmdate('ymd_His') . '_' . $name;
 
         $name = $this->saveTblNameInSession($this->migrationName);

@@ -16,6 +16,7 @@ if (!function_exists('duplicate')) {
  * @var string $tableNameRaw
  * @var array $fields
  * @var array $foreignKey
+ * @var array $fieldNames
  */
 ?>
 <?php echo "<?php" . PHP_EOL; ?>
@@ -52,6 +53,11 @@ foreach ($foreignKey as $_nextKey) {?>
                              <?= isset($_nextKey['update']) && $_nextKey['update'] ? "'{$_nextKey['update']}'" : 'null' ?>);
 <?php echo PHP_EOL; ?>
 <?php }}?>
+        if (is_file(__DIR__ . '/seed_data_<?= Yii::$app->db->schema->getRawTableName($tableName); ?>.php') {
+            $this->batchInsert('<?= $tableName; ?>', [
+                <?= '\'' . implode("'" . PHP_EOL ."                '", $fieldNames) . '\'' . PHP_EOL; ?>
+            ], require(__DIR__ . '/seed_data_<?= Yii::$app->db->schema->getRawTableName($tableName); ?>.php'));
+        }
     }
 
     public function down()

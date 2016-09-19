@@ -171,7 +171,7 @@ class TableBuilderTemplateMigration extends TableBuilder
 
     protected $allRelations = [];
 
-    protected function findRelationName($tableName, $relationConfig) {
+    protected function findRelationName($tableName, &$relationConfig) {
         if ($this->_connection->driverName === 'mysql') {
             $foreignKey = new Query();
 
@@ -193,7 +193,11 @@ class TableBuilderTemplateMigration extends TableBuilder
 
             foreach ($this->allRelations[$tableName] as $item) {
                 if ($item['referenced_column_name'] == $relationConfig['related_field'] && $item['column_name'] == $relationConfig['field']) {
-                    return $item['constraint_name'];
+                    $relationConfig['field']  = $item['column_name'];
+                    $relationConfig['table_name']  = $this->tableNameRaw;
+                    $relationConfig['related_field']  = $item['referenced_column_name'];
+                    $relationConfig['related_table']  = $item['referenced_table_name'];
+                    $relationConfig['fk_name']  = $item['constraint_name'];
                 }
             }
         }
@@ -207,8 +211,8 @@ class TableBuilderTemplateMigration extends TableBuilder
     public function runRelations() {
         $view = new View();
 
-        foreach ($this->relations as $index => $relation) {
-            $this->relations[$index]['fk_name'] = isset($relation['fk_name']) ? $relation['fk_name'] : $this->findRelationName($this->tableName, $relation);
+        foreach ($this->relations as $index => &$relation) {
+            $this->findRelationName($this->tableName, $relation);
         }
 
         return $view->renderFile($this->migrationTemplate, [

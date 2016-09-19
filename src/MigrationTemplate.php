@@ -40,7 +40,7 @@ foreach ($fields as $_name => $_nextField) { ?>
 <?php }?>
 
         ], $tableOptions);
-        $this->addForeignKey('<?= $tableNameRaw ?>_pk', '<?= $tableName?>', ['<?= implode('\', \'', $primaryKeys)?>'])
+        $this->createIndex('<?= $tableNameRaw ?>_pk', '<?= $tableName?>', ['<?= implode('\', \'', $primaryKeys)?>']);
 <?php
 if (is_array($foreignKey)) {
 foreach ($foreignKey as $_nextKey) {?>
@@ -53,9 +53,9 @@ foreach ($foreignKey as $_nextKey) {?>
                              <?= isset($_nextKey['update']) && $_nextKey['update'] ? "'{$_nextKey['update']}'" : 'null' ?>);
 <?php echo PHP_EOL; ?>
 <?php }}?>
-        if (is_file(__DIR__ . '/seed_data_<?= Yii::$app->db->schema->getRawTableName($tableName); ?>.php') {
+        if (is_file(__DIR__ . '/seed_data_<?= Yii::$app->db->schema->getRawTableName($tableName); ?>.php')) {
             $this->batchInsert('<?= $tableName; ?>', [
-                <?= '\'' . implode("'" . PHP_EOL ."                '", $fieldNames) . '\'' . PHP_EOL; ?>
+                <?= '\'' . implode("'," . PHP_EOL ."                '", $fieldNames) . '\',' . PHP_EOL; ?>
             ], require(__DIR__ . '/seed_data_<?= Yii::$app->db->schema->getRawTableName($tableName); ?>.php'));
         }
     }
